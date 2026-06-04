@@ -107,7 +107,7 @@ namespace helpers {
     };
 
 
-    #ifdef __CUDACC__
+    #if defined(__CUDACC__) || defined(__HIPCC__)
 
     class GpuTimer{
     public:

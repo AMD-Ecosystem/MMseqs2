@@ -2,7 +2,7 @@
 #define HELPERS_CUDA_RAII_WRAPPERS_CUH
 
 
-#ifdef __NVCC__
+#if defined(__NVCC__) || defined(__HIPCC__)
 
 #include "cuda_helpers.cuh"
 

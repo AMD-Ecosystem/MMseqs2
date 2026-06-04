@@ -19,7 +19,7 @@
 #include "hpc_helpers.h"
 
 // error checking
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIPCC__)
     #define CUERR {                                                            \
         cudaError_t err;                                                       \
         if ((err = cudaGetLastError()) != cudaSuccess) {                       \
@@ -41,44 +41,47 @@
 #define D2D (cudaMemcpyDeviceToDevice)
 
 // cross platform classifiers
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIPCC__)
     #define HOSTDEVICEQUALIFIER  __host__ __device__
 #else
     #define HOSTDEVICEQUALIFIER
 #endif
 
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIPCC__)
     #define INLINEQUALIFIER  __forceinline__
 #else
     #define INLINEQUALIFIER inline
 #endif
 
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIPCC__)
     #define GLOBALQUALIFIER  __global__
 #else
     #define GLOBALQUALIFIER
 #endif
 
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIPCC__)
     #define DEVICEQUALIFIER  __device__
 #else
     #define DEVICEQUALIFIER
 #endif
 
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIPCC__)
     #define HOSTQUALIFIER  __host__
 #else
     #define HOSTQUALIFIER
 #endif
 
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIPCC__)
     #define HD_WARNING_DISABLE #pragma hd_warning_disable
 #else
     #define HD_WARNING_DISABLE
 #endif
 
 // redefinition of CUDA atomics for common cstdint types
-#ifdef __CUDACC__
+#if defined(__CUDACC__) || defined(__HIPCC__)
+    // HIP already provides 64-bit atomicCAS/Add/Exch and the ffs overloads;
+    // these duplicate definitions are only needed for NVCC.
+    #ifndef __HIPCC__
     // CAS
     DEVICEQUALIFIER INLINEQUALIFIER
     std::uint64_t atomicCAS(
@@ -170,6 +173,7 @@
     {
         return __ffsll(x);
     }
+    #endif // !__HIPCC__
 
     namespace helpers {
 
@@ -193,9 +197,13 @@
         DEVICEQUALIFIER INLINEQUALIFIER
         unsigned int lane_id()
         {
+        #ifdef __HIPCC__
+            return __lane_id();
+        #else
             unsigned int lane;
             asm volatile("mov.u32 %0, %%laneid;" : "=r"(lane));
             return lane;
+        #endif
         }
 
         HOSTQUALIFIER INLINEQUALIFIER

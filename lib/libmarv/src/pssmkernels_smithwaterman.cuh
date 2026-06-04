@@ -518,6 +518,11 @@ void amino_gpu_localAlignmentKernel_affinegap_floatOrInt_pssm_singletile(
                 const int3 packed = make_int3(maxObserved, 
                     group.thread_rank() * numItems + positionOfMaxObserved_itemIndex,
                     positionOfMaxObserved_y - group.thread_rank() - 1);
+                #if defined(USE_HIP)
+                const int3 maxPacked = marv_tile_reduce(group, packed, [](int3 l, int3 r){
+                    return l.x > r.x ? l : r;
+                });
+#else
                 const int3 maxPacked = cg::reduce(group, packed, [](int3 l, int3 r){
                     if(l.x > r.x){
                         return l;
@@ -525,6 +530,7 @@ void amino_gpu_localAlignmentKernel_affinegap_floatOrInt_pssm_singletile(
                         return r;
                     }
                 });
+#endif
 
                 if(group.thread_rank() == 0){
                     ScoreWithExtra<ScoreType, AlignmentEndPosition> res(maxPacked.x, AlignmentEndPosition{maxPacked.y, maxPacked.z});
@@ -536,7 +542,11 @@ void amino_gpu_localAlignmentKernel_affinegap_floatOrInt_pssm_singletile(
             }
         }else{
             if(alignmentId < numAlignments){
+                #if defined(USE_HIP)
+                maxObserved = marv_tile_reduce(group, maxObserved, [](ScoreType l, ScoreType r){return l > r ? l : r;});
+#else
                 maxObserved = cg::reduce(group, maxObserved, cg::greater<ScoreType>{});
+#endif
 
                 if(group.thread_rank() == 0){
                     ScoreWithExtra<ScoreType, AlignmentEndPosition> res(maxObserved, AlignmentEndPosition{0, 0});
@@ -1567,6 +1577,11 @@ void amino_gpu_localAlignmentKernel_affinegap_floatOrInt_pssm_multitile(
                 const int3 packed = make_int3(maxObserved, 
                     positionOfMaxObserved_tileNr * groupsize * numItems + group.thread_rank() * numItems + positionOfMaxObserved_itemIndex,
                     positionOfMaxObserved_y - group.thread_rank() - 1);
+                #if defined(USE_HIP)
+                const int3 maxPacked = marv_tile_reduce(group, packed, [](int3 l, int3 r){
+                    return l.x > r.x ? l : r;
+                });
+#else
                 const int3 maxPacked = cg::reduce(group, packed, [](int3 l, int3 r){
                     if(l.x > r.x){
                         return l;
@@ -1574,6 +1589,7 @@ void amino_gpu_localAlignmentKernel_affinegap_floatOrInt_pssm_multitile(
                         return r;
                     }
                 });
+#endif
 
                 if(group.thread_rank() == 0){
                     ScoreWithExtra<ScoreType, AlignmentEndPosition> res(maxPacked.x, AlignmentEndPosition{maxPacked.y, maxPacked.z});
@@ -1585,7 +1601,11 @@ void amino_gpu_localAlignmentKernel_affinegap_floatOrInt_pssm_multitile(
             }
         }else{
             if(alignmentId < numAlignments){
+                #if defined(USE_HIP)
+                maxObserved = marv_tile_reduce(group, maxObserved, [](ScoreType l, ScoreType r){return l > r ? l : r;});
+#else
                 maxObserved = cg::reduce(group, maxObserved, cg::greater<ScoreType>{});
+#endif
 
                 if(group.thread_rank() == 0){
                     ScoreWithExtra<ScoreType, AlignmentEndPosition> res(maxObserved, AlignmentEndPosition{0, 0});

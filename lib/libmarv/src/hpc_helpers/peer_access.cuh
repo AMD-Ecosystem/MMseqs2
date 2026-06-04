@@ -1,7 +1,7 @@
 #ifndef HELPERS_PEER_ACCESS_CUH
 #define HELPERS_PEER_ACCESS_CUH
 
-#ifdef __NVCC__
+#if defined(__NVCC__) || defined(__HIPCC__)
 
     #include <cassert>
     #include <iostream>

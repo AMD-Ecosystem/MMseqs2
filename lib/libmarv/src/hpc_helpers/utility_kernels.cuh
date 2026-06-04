@@ -4,7 +4,7 @@
 #include "cuda_helpers.cuh"
 #include "hpc_helpers.h"
 
-#ifdef __NVCC__
+#if defined(__NVCC__) || defined(__HIPCC__)
 
 namespace helpers {
 

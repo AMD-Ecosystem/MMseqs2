@@ -5,7 +5,7 @@
     Need to link with -lnvToolsExt to use this
 */
 
-#ifdef __NVCC__
+#if defined(__NVCC__) || defined(__HIPCC__)
 
 #ifndef NO_NVTOOLSEXT
 #include <nvtx3/nvToolsExt.h>

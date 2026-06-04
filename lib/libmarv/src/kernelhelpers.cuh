@@ -26,10 +26,10 @@ namespace cudasw4{
             return __reduce_max_sync(mask, val);
         #else
             for (int offset = 16; offset > 0; offset /= 2){
-                T tmp = __shfl_down_sync(mask, val, offset);
+                T tmp = __shfl_down_sync(mask, val, offset, 32);
                 val = tmp > val ? tmp : val;
             }
-            return __shfl_sync(mask, val, 0);
+            return __shfl_sync(mask, val, 0, 32);
         #endif
     }
 
@@ -37,10 +37,10 @@ namespace cudasw4{
     __device__
     T warp_max_reduce_broadcast(unsigned int mask, T val){
         for (int offset = 16; offset > 0; offset /= 2){
-            T tmp = __shfl_down_sync(mask, val, offset);
+            T tmp = __shfl_down_sync(mask, val, offset, 32);
             val = tmp > val ? tmp : val;
         }
-        return __shfl_sync(mask, val, 0);
+        return __shfl_sync(mask, val, 0, 32);
     }
 
     inline __device__ short2 viaddmax(const short2 a_in, const short2 b_in, const short2 c_in) {

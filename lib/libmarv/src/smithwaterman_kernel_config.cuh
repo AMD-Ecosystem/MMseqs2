@@ -291,13 +291,20 @@ namespace cudasw4{
 
     __inline__
     std::vector<SmithWatermanKernelConfig> getOptimalKernelConfigs_SW(int deviceId){
+#if defined(USE_HIP)
+        // See getOptimalKernelConfigs_gapless: ROCm reports cc 9.0, so use the
+        // conservative T4-class set (dpx=0 float path, smallest tiles) to stay
+        // on the portable SIMT path and within the AMD shared-memory ceiling.
+        (void)deviceId;
+        return getOptimalKernelConfigs_SW_sm75();
+#else
         int ccMajor = 0;
         int ccMinor = 0;
         cudaDeviceGetAttribute(&ccMajor, cudaDevAttrComputeCapabilityMajor, deviceId);
         cudaDeviceGetAttribute(&ccMinor, cudaDevAttrComputeCapabilityMinor, deviceId);
 
         std::vector<SmithWatermanKernelConfig> configs;
-        
+
         if(ccMajor == 7 && ccMinor == 5){
             configs = getOptimalKernelConfigs_SW_sm75();
         }else if(ccMajor == 8 && ccMinor == 0){
@@ -317,6 +324,7 @@ namespace cudasw4{
         }
 
         return configs;
+#endif
     }
 
 

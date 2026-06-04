@@ -8,7 +8,11 @@
 #include <thrust/sequence.h>
 #include <thrust/fill.h>
 
-
+#if defined(USE_HIP)
+// rocThrust names its parallel execution policy thrust::hip; alias it so the
+// CUDA spelling thrust::cuda::par_nosync below resolves unchanged.
+namespace thrust { namespace cuda = hip; }
+#endif
 
 namespace cudasw4{
 

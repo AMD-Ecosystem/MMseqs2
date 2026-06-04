@@ -8,6 +8,23 @@
 #include "ptx_wrappers.cuh"
 #include "custom_score_types.cuh"
 
+#if defined(USE_HIP)
+namespace cudasw4{
+    // ROCm has no cooperative_groups::reduce. Reduce within the logical tile
+    // (group_size in {4,8,16}) with a butterfly over group.shfl_xor. group.size()
+    // is the tile width regardless of the hardware wavefront, so this is correct
+    // on both wave32 and wave64.
+    template<class Group, class T, class Op>
+    __device__ T marv_tile_reduce(Group& group, T val, Op op){
+        for(int offset = group.size() / 2; offset > 0; offset /= 2){
+            T other = group.shfl_xor(val, offset);
+            val = op(val, other);
+        }
+        return val;
+    }
+}
+#endif
+
 // from https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__HALF__CONSTANTS.html
 #ifndef CUDART_ZERO_FP16
 #define CUDART_ZERO_FP16 __ushort_as_half((unsigned short)0x0000U)
@@ -123,8 +140,12 @@ namespace cudasw4{
         template<class Group>
         __device__
         static VecType reduce_max(Group& group, VecType val){
+            #if defined(USE_HIP)
+            return marv_tile_reduce(group, val, [](const auto& l, const auto& r){return __hmax2(l,r);});
+            #else
             return cooperative_groups::reduce(group, val, [](const auto& l, const auto& r){return __hmax2(l,r);});
             //return cooperative_groups::reduce(group, val, cooperative_groups::greater<VecType>{});
+            #endif
         }
     };
 
@@ -215,8 +236,12 @@ namespace cudasw4{
         template<class Group>
         __device__
         static VecType reduce_max(Group& group, VecType val){
+            #if defined(USE_HIP)
+            return asVec(marv_tile_reduce(group, asUint(val), [](const auto& l, const auto& r){return __vmaxs2(l,r);}));
+            #else
             return asVec(cooperative_groups::reduce(group, asUint(val), [](const auto& l, const auto& r){return __vmaxs2(l,r);}));
             //return cooperative_groups::reduce(group, val, cooperative_groups::greater<VecType>{});
+            #endif
         }
     };
 
@@ -287,7 +312,11 @@ namespace cudasw4{
         template<class Group>
         __device__
         static Type reduce_max(Group& group, Type val){
+            #if defined(USE_HIP)
+            return marv_tile_reduce(group, val, [](const Type& l, const Type& r){return l > r ? l : r;});
+            #else
             return cooperative_groups::reduce(group, val, cooperative_groups::greater<Type>{});
+            #endif
         }
     };
 
@@ -346,7 +375,11 @@ namespace cudasw4{
         template<class Group>
         __device__
         static Type reduce_max(Group& group, Type val){
+            #if defined(USE_HIP)
+            return marv_tile_reduce(group, val, [](const Type& l, const Type& r){return l > r ? l : r;});
+            #else
             return cooperative_groups::reduce(group, val, cooperative_groups::greater<Type>{});
+            #endif
         }
     };
 
@@ -387,7 +420,11 @@ namespace cudasw4{
         template<class Group>
         __device__
         static Type reduce_max(Group& group, Type val){
+            #if defined(USE_HIP)
+            return marv_tile_reduce(group, val, [](const Type& l, const Type& r){return l > r ? l : r;});
+            #else
             return cooperative_groups::reduce(group, val, cooperative_groups::greater<Type>{});
+            #endif
         }
     };
 
@@ -428,7 +465,11 @@ namespace cudasw4{
         template<class Group>
         __device__
         static Type reduce_max(Group& group, Type val){
+            #if defined(USE_HIP)
+            return marv_tile_reduce(group, val, [](const Type& l, const Type& r){return l > r ? l : r;});
+            #else
             return cooperative_groups::reduce(group, val, cooperative_groups::greater<Type>{});
+            #endif
         }
     };
 
@@ -503,14 +544,18 @@ namespace cudasw4{
         template<class Group>
         __device__
         static VecType reduce_max(Group& group, VecType val){
-            #ifdef HAS_BLACKWELL_INT8_PTX
+            #if defined(USE_HIP)
+            return VecType(
+                marv_tile_reduce(group, static_cast<unsigned int>(val), [](const auto& l, const auto& r){return __vmaxu4(l,r);})
+            );
+            #elif defined(HAS_BLACKWELL_INT8_PTX)
             return VecType(
                 cooperative_groups::reduce(group, static_cast<unsigned int>(val), [](const auto& l, const auto& r){return ptx_max_u8x4(l,r);})
             );
             #else
             return VecType(
                 cooperative_groups::reduce(group, static_cast<unsigned int>(val), [](const auto& l, const auto& r){return __vmaxu4(l,r);})
-            );            
+            );
             #endif
         }
     };

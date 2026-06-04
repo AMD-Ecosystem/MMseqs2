@@ -5,7 +5,7 @@
 
 namespace cudasw4{
 
-    #ifdef __CUDACC__
+    #if defined(__CUDACC__) || defined(__HIPCC__)
     __constant__ std::int8_t deviceBlosum[25*25];
     __constant__ int deviceBlosumDim;
     __constant__ int deviceBlosumDimSquared;
@@ -104,7 +104,7 @@ namespace cudasw4{
                 assert(false && "unimplemented blosum copy");
                 break;
         }
-    #ifdef __CUDACC__
+    #if defined(__CUDACC__) || defined(__HIPCC__)
         RevertDeviceId rdi{};
     
         int numGpus = deviceIds.size();

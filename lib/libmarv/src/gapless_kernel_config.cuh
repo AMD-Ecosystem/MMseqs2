@@ -432,6 +432,16 @@ namespace cudasw4{
 
     __inline__
     std::vector<GaplessKernelConfig> getOptimalKernelConfigs_gapless(int deviceId, bool blackwell_int8){
+#if defined(USE_HIP)
+        // ROCm devices report compute capability 9.0 (gfx90a), which would
+        // otherwise select the Hopper DPX short2 path and the large Hopper
+        // tiles. Use the conservative T4-class set instead: it is the half2
+        // datatype with the smallest tiles, which both routes through the
+        // portable SIMT path and keeps dynamic shared memory within the
+        // 64 KiB per-block ceiling of current AMD GPUs.
+        (void)deviceId; (void)blackwell_int8;
+        return getOptimalKernelConfigs_gapless_sm75();
+#else
         int ccMajor = 0;
         int ccMinor = 0;
         cudaDeviceGetAttribute(&ccMajor, cudaDevAttrComputeCapabilityMajor, deviceId);
@@ -466,6 +476,7 @@ namespace cudasw4{
         }
 
         return configs;
+#endif
     }
 
 
