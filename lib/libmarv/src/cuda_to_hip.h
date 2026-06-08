@@ -18,17 +18,17 @@
 #endif
 #endif
 
-// On Windows (ROCm 7.14+ TheRock), <amd_hip_bf16.h> defines __shfl_*_sync
-// bfloat16 overloads that conflict with the generic warp-sync template
-// already declared by <amd_warp_sync_functions.h>, causing a clang
-// "redefinition of default argument" error. Suppress the templates there.
-// On Linux ROCm 7.2.x the generic template is NOT present and __syncwarp is
-// defined inside the same guard, so suppressing it breaks __syncwarp; do not
-// set the flag on Linux.
-#ifdef _WIN32
-#ifndef HIP_DISABLE_WARP_SYNC_BUILTINS
-#define HIP_DISABLE_WARP_SYNC_BUILTINS
-#endif
+// On ROCm 7.14+, <amd_hip_bf16.h> defines __shfl_*_sync bfloat16 overloads that
+// conflict with this header's own warp-sync shuffle definitions, causing a clang
+// "redefinition of default argument" error; HIP_DISABLE_WARP_SYNC_BUILTINS
+// suppresses the runtime's builtins so ours win. On ROCm 7.2.x those overloads
+// and __syncwarp (used in kernels.cuh) live behind the SAME guard, so defining
+// it there would strip __syncwarp and break the build; the flag must be set on
+// 7.14+ only. Key it on the HIP runtime version, not the OS. It must be defined
+// before the include below pulls in the warp-sync builtins.
+#include <hip/hip_version.h>
+#if defined(HIP_VERSION) && (HIP_VERSION_MAJOR > 7 || (HIP_VERSION_MAJOR == 7 && HIP_VERSION_MINOR >= 14))
+#  define HIP_DISABLE_WARP_SYNC_BUILTINS
 #endif
 
 #include <hip/hip_runtime.h>
