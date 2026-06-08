@@ -18,14 +18,17 @@
 #endif
 #endif
 
-// Suppress the ROCm warp-sync builtins template (<amd_warp_sync_functions.h>)
-// before hip_runtime.h defines them. Newer ROCm (7.14+) also defines
-// __shfl_*_sync overloads for bfloat16 in amd_hip_bf16.h; when the generic
-// template is already declared the bfloat16 overloads trigger a clang
-// "redefinition of default argument" error. libmarv maps __shfl_*_sync to the
-// maskless builtins via macros below, so the templates are not needed here.
+// On Windows (ROCm 7.14+ TheRock), <amd_hip_bf16.h> defines __shfl_*_sync
+// bfloat16 overloads that conflict with the generic warp-sync template
+// already declared by <amd_warp_sync_functions.h>, causing a clang
+// "redefinition of default argument" error. Suppress the templates there.
+// On Linux ROCm 7.2.x the generic template is NOT present and __syncwarp is
+// defined inside the same guard, so suppressing it breaks __syncwarp; do not
+// set the flag on Linux.
+#ifdef _WIN32
 #ifndef HIP_DISABLE_WARP_SYNC_BUILTINS
 #define HIP_DISABLE_WARP_SYNC_BUILTINS
+#endif
 #endif
 
 #include <hip/hip_runtime.h>
