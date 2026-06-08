@@ -6,12 +6,15 @@
 #include "PrefilteringIndexReader.h"
 
 #include <cstring>
-#include <fcntl.h>
 #include <iostream>
-#include <sys/mman.h>
-#include <unistd.h>
 #include <utility>
 #include <thread>
+
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 extern const char* version;
 
@@ -25,6 +28,35 @@ std::string GPUSharedMemory::getShmHash(const std::string& db) {
     size_t hash = Util::hash(dbpath.c_str(), dbpath.length());
     return SSTR(hash);
 }
+
+#ifdef _WIN32
+
+// GPU server mode uses POSIX shared memory (shm_open/mmap) which is not
+// available on Windows. The direct GPU path (--gpu 1 without --gpu-server)
+// does not use these functions and works normally. Provide stub implementations
+// that terminate with an error if the server path is accidentally taken.
+
+GPUSharedMemory* GPUSharedMemory::alloc(const std::string& name, unsigned int maxSeqLen, unsigned int maxResListLen) {
+    Debug(Debug::ERROR) << "GPU server mode is not supported on Windows\n";
+    EXIT(EXIT_FAILURE);
+    return nullptr;
+}
+
+void GPUSharedMemory::dealloc(GPUSharedMemory* layout, const std::string& name) {
+    (void)layout; (void)name;
+}
+
+void GPUSharedMemory::unmap(GPUSharedMemory* layout) {
+    (void)layout;
+}
+
+GPUSharedMemory* GPUSharedMemory::openSharedMemory(const std::string& name) {
+    Debug(Debug::ERROR) << "GPU server mode is not supported on Windows\n";
+    EXIT(EXIT_FAILURE);
+    return nullptr;
+}
+
+#else // _WIN32
 
 // Allocate and initialize shared memory
 GPUSharedMemory* GPUSharedMemory::alloc(const std::string& name, unsigned int maxSeqLen, unsigned int maxResListLen) {
@@ -111,4 +143,5 @@ GPUSharedMemory* GPUSharedMemory::openSharedMemory(const std::string& name) {
     return reinterpret_cast<GPUSharedMemory*>(ptr);
 }
 
-#endif
+#endif // _WIN32
+#endif // HAVE_CUDA

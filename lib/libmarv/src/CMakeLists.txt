@@ -96,7 +96,15 @@ if(USE_HIP)
         $<$<COMPILE_LANGUAGE:HIP>:-fgpu-rdc;--offload-compress;-include;${CMAKE_CURRENT_SOURCE_DIR}/cuda_to_hip.h>
     )
     target_link_options(marv PRIVATE -fgpu-rdc --hip-link)
-    target_compile_definitions(marv PRIVATE USE_HIP NO_NVTOOLSEXT)
+    # On Windows (MSVC-ABI clang), CMake adds -fuse-ld=lld-link to the HIP
+    # link command via CMAKE_HIP_USING_LINKER_DEFAULT. clang rejects that flag
+    # when --hip-link is present (clang-linker-wrapper takes over from the
+    # driver). Clear the default so clang-linker-wrapper picks lld-link on
+    # its own.
+    if(WIN32)
+        set(CMAKE_HIP_USING_LINKER_DEFAULT "")
+    endif()
+    target_compile_definitions(marv PRIVATE USE_HIP NO_NVTOOLSEXT $<$<BOOL:${WIN32}>:MARV_BUILDING_DLL>)
     # Link the ROCm libraries PRIVATE so their HIP-language compile options
     # (--offload-arch) do not leak to the plain C++ consumers (mmseqs-framework).
     # marv resolves its device symbols internally (HIP_RESOLVE_DEVICE_SYMBOLS).

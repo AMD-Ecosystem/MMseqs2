@@ -122,10 +122,19 @@ std::vector<std::string> split(const std::string &str, const std::string &sep) {
     char *cstr = strdup(str.c_str());
     const char* csep = sep.c_str();
     char *rest;
+    // strtok_r is POSIX; Windows provides strtok_s with compatible semantics.
+#ifdef _WIN32
+    char *current = strtok_s(cstr, csep, &rest);
+#else
     char *current = strtok_r(cstr, csep, &rest);
+#endif
     while (current != NULL) {
         arr.emplace_back(current);
+#ifdef _WIN32
+        current = strtok_s(NULL, csep, &rest);
+#else
         current = strtok_r(NULL, csep, &rest);
+#endif
     }
     free(cstr);
 

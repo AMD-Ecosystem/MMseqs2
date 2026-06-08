@@ -7,6 +7,27 @@
 // headers, and the packed-integer SIMD intrinsics are mapped to their HIP /
 // ROCm equivalents. The CUDA build never sees this header.
 
+// On Windows, <windows.h> defines min/max as function-like macros which break
+// C++ standard library uses of std::numeric_limits<T>::max() etc. Suppress them.
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#endif
+
+// Suppress the ROCm warp-sync builtins template (<amd_warp_sync_functions.h>)
+// before hip_runtime.h defines them. Newer ROCm (7.14+) also defines
+// __shfl_*_sync overloads for bfloat16 in amd_hip_bf16.h; when the generic
+// template is already declared the bfloat16 overloads trigger a clang
+// "redefinition of default argument" error. libmarv maps __shfl_*_sync to the
+// maskless builtins via macros below, so the templates are not needed here.
+#ifndef HIP_DISABLE_WARP_SYNC_BUILTINS
+#define HIP_DISABLE_WARP_SYNC_BUILTINS
+#endif
+
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
 

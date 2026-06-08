@@ -2,8 +2,19 @@
 #define MARV_H
 
 #include <vector>
+#include <string>
 
-class Marv {
+// On Windows, the Marv class must be explicitly exported from the DLL
+// (libmarv.so on Linux exports everything by default; Windows DLLs do not).
+#if defined(_WIN32) && defined(MARV_BUILDING_DLL)
+#define MARV_API __declspec(dllexport)
+#elif defined(_WIN32)
+#define MARV_API __declspec(dllimport)
+#else
+#define MARV_API
+#endif
+
+class MARV_API Marv {
 public:
     enum AlignmentType {
         GAPLESS,
