@@ -12,10 +12,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(LIBRARY_ONLY 0 CACHE BOOL "Do not build executables")
 
 if(USE_HIP)
+    # enable_language(HIP) honors -DCMAKE_HIP_ARCHITECTURES, otherwise auto-detects
+    # the host GPU(s), and errors on a no-GPU build host.
     enable_language(HIP)
-    if(NOT DEFINED CMAKE_HIP_ARCHITECTURES)
-        set(CMAKE_HIP_ARCHITECTURES gfx90a)
-    endif()
     find_package(hip REQUIRED)
     find_package(rocthrust REQUIRED)
 endif()
