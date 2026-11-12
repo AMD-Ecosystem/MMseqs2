@@ -5,7 +5,17 @@
 #include <cstdint>
 #include <vector>
 
-class Marv {
+// A Windows DLL exports only what is marked; a shared libmarv defines
+// MARV_BUILDING_DLL for itself and MARV_USING_DLL for its consumers.
+#if defined(_WIN32) && defined(MARV_BUILDING_DLL)
+#define MARV_API __declspec(dllexport)
+#elif defined(_WIN32) && defined(MARV_USING_DLL)
+#define MARV_API __declspec(dllimport)
+#else
+#define MARV_API
+#endif
+
+class MARV_API Marv {
 public:
     enum AlignmentType {
         GAPLESS,
