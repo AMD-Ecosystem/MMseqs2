@@ -4,7 +4,10 @@
 #include <cctype>
 #include <cstring>
 
-namespace cudasw4{
+#include "ptx_wrappers.cuh"
+
+#include "namespace.hpp"
+LIBMARV_NAMESPACE_WITH_NESTING_BEGIN
 
 struct ConvertAA_20{
     #if defined(__CUDACC__) || defined(__HIPCC__)
@@ -222,7 +225,11 @@ struct ClampToInvalid{
         #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
 
         constexpr unsigned int mask20 = 0x14141414; // decimal 20 per byte
+        #ifdef HAS_BLACKWELL_INT8_PTX
+        return ptx_min_u8x4(packed4, mask20);
+        #else
         return __vminu4(packed4, mask20);
+        #endif
 
         #else
 
@@ -319,6 +326,6 @@ struct ConvertAA_20_ncbi_to_mmseqs{
 
 
 
-} //namespace cudasw4
+LIBMARV_NAMESPACE_WITH_NESTING_END
 
 #endif

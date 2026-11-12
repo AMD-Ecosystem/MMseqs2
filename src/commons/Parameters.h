@@ -93,6 +93,7 @@ public:
     static const unsigned int DBTYPE_EXTENDED_CONTEXT_PSEUDO_COUNTS = 4;
     static const unsigned int DBTYPE_EXTENDED_GPU = 8;
     static const unsigned int DBTYPE_EXTENDED_SET = 16;
+    static const unsigned int DBTYPE_EXTENDED_AUX_SEQ = 32;
 
     // don't forget to add new database types to DBReader::getDbTypeName and Parameters::PARAM_OUTPUT_DBTYPE
 
@@ -100,6 +101,7 @@ public:
     static const int LINCLUST_VERSION2 = 2;
     static const int CLUSTER_VERSION1 = 1;
     static const int CLUSTER_VERSION2 = 2;
+
     static const int SEARCH_TYPE_AUTO = 0;
     static const int SEARCH_TYPE_PROTEIN = 1;
     static const int SEARCH_TYPE_TRANSLATED = 2;
@@ -428,6 +430,7 @@ public:
     float    compBiasCorrectionScale;    // Aminoacid composiont correction scale factor
 
     bool   diagonalScoring;              // switch diagonal scoring
+    bool   useAuxScoring;                // use auxiliary sequence scoring in prefilter
     int    exactKmerMatching;            // only exact k-mer matching
     int    maskMode;                     // mask low complex areas
     float  maskProb;                     // mask probability
@@ -560,6 +563,9 @@ public:
     MultiParam<PseudoCounts> pcb;
     int profileOutputMode;
 
+    // pickrepprofile / pickconsensusrepfast
+    bool switchConsensusRep;
+
     // sequence2profile
     float neff;
     float tau;
@@ -663,6 +669,7 @@ public:
     // mergedbs
     std::string mergePrefixes;
     bool mergeStopEmpty;
+    bool mergeFilterTarget;
 
     // summarizetabs
     float overlap;
@@ -760,6 +767,7 @@ public:
     float temperature;
     int blocklen;
     int fwbwBacktraceMode;
+    int fwbwScaledMode;
 
     // touchdb
     bool touchLock;
@@ -775,6 +783,8 @@ public:
     bool         proteomeCascadedClustering;
     bool         includeAlignFiles;
     bool         proteomeIncludeAlignFiles;
+    int          proteomeScoreMode;
+    bool         proteomeReassign;
 
     // for modules that should handle -h themselves
     bool help;
@@ -922,6 +932,9 @@ public:
     PARAMETER(PARAM_PCA)
     PARAMETER(PARAM_PCB)
     PARAMETER(PARAM_PROFILE_OUTPUT_MODE)
+
+    // pickrepprofile / pickconsensusrepfast
+    PARAMETER(PARAM_SWITCH_CONSENSUS_REP)
 
     // sequence2profile
     PARAMETER(PARAM_NEFF)
@@ -1082,6 +1095,7 @@ public:
     // mergedbs
     PARAMETER(PARAM_MERGE_PREFIXES)
     PARAMETER(PARAM_MERGE_STOP_EMPTY)
+    PARAMETER(PARAM_MERGE_FILTER_TARGET)
 
     // summarizetabs
     PARAMETER(PARAM_OVERLAP)
@@ -1157,6 +1171,7 @@ public:
     PARAMETER(PARAM_TEMPERATURE)
     PARAMETER(PARAM_BLOCKLEN)
     PARAMETER(PARAM_FWBW_BACKTRACE_MODE)
+    PARAMETER(PARAM_FWBW_SCALED_MODE)
 
     // touchdb
     PARAMETER(PARAM_TOUCH_LOCK)
@@ -1172,6 +1187,8 @@ public:
     PARAMETER(PARAM_PROTEOME_WEIGHT_FILE)
     PARAMETER(PARAM_PROTEOME_WEIGHT_CLUSTER_COUNT)
     PARAMETER(PARAM_PROTEOME_INCLUDE_ALIGN_FILES)
+    PARAMETER(PARAM_PROTEOME_SCORE_MODE)
+    PARAMETER(PARAM_PROTEOME_REASSIGN)
 
     // for modules that should handle -h themselves
     PARAMETER(PARAM_HELP)
@@ -1228,6 +1245,8 @@ public:
     std::vector<MMseqsParameter*> convert2fasta;
     std::vector<MMseqsParameter*> result2flat;
     std::vector<MMseqsParameter*> result2repseq;
+    std::vector<MMseqsParameter*> pickrepprofile;
+    std::vector<MMseqsParameter*> pickconsensusrepfast;
     std::vector<MMseqsParameter*> gff2db;
     std::vector<MMseqsParameter*> clusthash;
     std::vector<MMseqsParameter*> kmermatcher;
@@ -1304,6 +1323,7 @@ public:
     std::vector<MMseqsParameter*> proteomecluster;
     std::vector<MMseqsParameter*> easyproteomeclusterworkflow;
     std::vector<MMseqsParameter*> parseproteomealignments;
+    std::vector<MMseqsParameter*> mergeproteomeclusters;
     std::vector<MMseqsParameter*> easyproteomesearchworkflow;
 
     std::vector<MMseqsParameter*> combineList(const std::vector<MMseqsParameter*> &par1,

@@ -1,6 +1,8 @@
 #ifndef HELPERS_CUDA_HELPERS_CUH
 #define HELPERS_CUDA_HELPERS_CUH
 
+#include "../cuda_hip_rename.h"
+
 #include <iostream>
 #include <cstdint>
 #include <vector>
@@ -18,8 +20,31 @@
 
 #include "hpc_helpers.h"
 
+#if defined(__HIPCC__)
+    #include "hip/hip_runtime.h"
+#endif
+
 // error checking
-#if defined(__CUDACC__) || defined(__HIPCC__)
+#ifdef __HIPCC__
+    #define CUERR {                                                            \
+        hipError_t err;                                                       \
+        if ((err = cudaGetLastError()) != cudaSuccess) {                       \
+            std::cout << "HIP error: " << cudaGetErrorString(err) << " : "    \
+                    << __FILE__ << ", line " << __LINE__ << std::endl;       \
+            exit(1);                                                           \
+        }                                                                      \
+    }
+#elif defined(__HIP_PLATFORM_AMD__)
+    #define CUERR {                                                            \
+        cudaError_t err;                                                       \
+        if ((err = cudaGetLastError()) != cudaSuccess) {                       \
+            std::cout << "HIP error: " << cudaGetErrorString(err) << " : "    \
+                    << __FILE__ << ", line " << __LINE__ << std::endl;       \
+            exit(1);                                                           \
+        }                                                                      \
+    }
+
+#elif defined(__CUDACC__)
     #define CUERR {                                                            \
         cudaError_t err;                                                       \
         if ((err = cudaGetLastError()) != cudaSuccess) {                       \
@@ -78,10 +103,7 @@
 #endif
 
 // redefinition of CUDA atomics for common cstdint types
-#if defined(__CUDACC__) || defined(__HIPCC__)
-    // HIP already provides 64-bit atomicCAS/Add/Exch and the ffs overloads;
-    // these duplicate definitions are only needed for NVCC.
-    #ifndef __HIPCC__
+#ifdef __CUDACC__
     // CAS
     DEVICEQUALIFIER INLINEQUALIFIER
     std::uint64_t atomicCAS(
@@ -173,8 +195,9 @@
     {
         return __ffsll(x);
     }
-    #endif // !__HIPCC__
+#endif
 
+#if defined(__CUDACC__) || defined(__HIPCC__)
     namespace helpers {
 
         #ifdef __CUDACC_EXTENDED_LAMBDA__
@@ -197,13 +220,9 @@
         DEVICEQUALIFIER INLINEQUALIFIER
         unsigned int lane_id()
         {
-        #ifdef __HIPCC__
-            return __lane_id();
-        #else
             unsigned int lane;
             asm volatile("mov.u32 %0, %%laneid;" : "=r"(lane));
             return lane;
-        #endif
         }
 
         HOSTQUALIFIER INLINEQUALIFIER

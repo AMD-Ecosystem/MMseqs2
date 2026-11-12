@@ -13,42 +13,66 @@
 #include <omp.h>
 #endif
 
+static std::vector<unsigned int> indexSources(DBReader<DBKeyType> &dbr, std::vector<size_t> &sourceToIdx, std::vector<DBKeyType> &sourceIds) {
+    std::vector<unsigned int> numEntries(dbr.getSourceSize(), 0);
+#pragma omp parallel
+    {
+        std::vector<unsigned int> localNumEntries(numEntries.size(), 0);
+#pragma omp for schedule(static)
+        for (size_t i = 0; i < dbr.getSize(); i++) {
+            localNumEntries[static_cast<size_t>(dbr.getLookupFileNumber(dbr.getLookupIdByKey(dbr.getDbKey(i))))]++;
+        }
+#pragma omp critical
+        {
+            for (size_t source = 0; source < numEntries.size(); source++) {
+                numEntries[source] += localNumEntries[source];
+            }
+        }
+    }
+    std::vector<unsigned int> sourceNumEntries;
+    sourceToIdx.assign(numEntries.size(), SIZE_MAX);
+    for (size_t source = 0; source < numEntries.size(); source++) {
+        if (numEntries[source] > 0) {
+            sourceToIdx[source] = sourceIds.size();
+            sourceIds.push_back(static_cast<DBKeyType>(source));
+            sourceNumEntries.push_back(numEntries[source]);
+        }
+    }
+    return sourceNumEntries;
+}
+
 int parseproteomealignments(int argc, const char **argv, const Command &command) {
     Parameters &par = Parameters::getInstance();
     par.parseParameters(argc, argv, command, true, 0, 0);
 
     // Open DBs
-    DBReader<unsigned int> qdbr(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA|DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_LOOKUP|DBReader<unsigned int>::USE_SOURCE);
-    qdbr.open(DBReader<unsigned int>::NOSORT);
-    size_t qdbSourceSize = qdbr.getSourceSize();
-   
-    DBReader<unsigned int> tdbr(par.db2.c_str(), par.db2Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA|DBReader<unsigned int>::USE_INDEX|DBReader<unsigned int>::USE_LOOKUP|DBReader<unsigned int>::USE_SOURCE);
-    tdbr.open(DBReader<unsigned int>::NOSORT);
-    size_t tdbSourceSize = tdbr.getSourceSize();
+    DBReader<DBKeyType> qdbr(par.db1.c_str(), par.db1Index.c_str(), par.threads, DBReader<DBKeyType>::USE_DATA|DBReader<DBKeyType>::USE_INDEX|DBReader<DBKeyType>::USE_LOOKUP|DBReader<DBKeyType>::USE_SOURCE);
+    qdbr.open(DBReader<DBKeyType>::NOSORT);
 
-    DBReader<unsigned int> alndbr(par.db3.c_str(), par.db3Index.c_str(), par.threads, DBReader<unsigned int>::USE_DATA|DBReader<unsigned int>::USE_INDEX);
-    alndbr.open(DBReader<unsigned int>::LINEAR_ACCCESS);
+    DBReader<DBKeyType> tdbr(par.db2.c_str(), par.db2Index.c_str(), par.threads, DBReader<DBKeyType>::USE_DATA|DBReader<DBKeyType>::USE_INDEX|DBReader<DBKeyType>::USE_LOOKUP|DBReader<DBKeyType>::USE_SOURCE);
+    tdbr.open(DBReader<DBKeyType>::NOSORT);
 
-    int proteomeDBType = DBReader<unsigned int>::setExtendedDbtype(Parameters::DBTYPE_GENERIC_DB, Parameters::DBTYPE_EXTENDED_SET);
+    std::vector<size_t> qSourceToIdx;
+    std::vector<DBKeyType> qSourceIds;
+    const std::vector<unsigned int> qSourceNumEntries = indexSources(qdbr, qSourceToIdx, qSourceIds);
+    std::vector<size_t> tSourceToIdx;
+    std::vector<DBKeyType> tSourceIds;
+    indexSources(tdbr, tSourceToIdx, tSourceIds);
+    const size_t qdbSourceSize = qSourceIds.size();
+    const size_t tdbSourceSize = tSourceIds.size();
+
+    DBReader<DBKeyType> alndbr(par.db3.c_str(), par.db3Index.c_str(), par.threads, DBReader<DBKeyType>::USE_DATA|DBReader<DBKeyType>::USE_INDEX);
+    alndbr.open(DBReader<DBKeyType>::LINEAR_ACCCESS);
+
+    int proteomeDBType = DBReader<DBKeyType>::setExtendedDbtype(Parameters::DBTYPE_GENERIC_DB, Parameters::DBTYPE_EXTENDED_SET);
     DBWriter resultWriter(par.db4.c_str(), par.db4Index.c_str(), 1, par.compressed, proteomeDBType);
     resultWriter.open();
 
-    unsigned int *scores = new unsigned int[tdbSourceSize * qdbSourceSize]; 
-    std::fill(scores, scores + (tdbSourceSize * qdbSourceSize), 0);
+    unsigned int *scores = new(std::nothrow) unsigned int[tdbSourceSize * qdbSourceSize];
     Util::checkAllocation(scores, "Can not allocate scores memory in parseproteomealignments");
+    std::fill(scores, scores + (tdbSourceSize * qdbSourceSize), 0);
     unsigned int **scoreLookupTable = new unsigned int*[qdbSourceSize]; 
     for (size_t i = 0; i < qdbSourceSize; ++i) { scoreLookupTable[i] = scores + i * tdbSourceSize; }
-    unsigned int * qSourceIdtoNumEntries = new unsigned int[qdbSourceSize];
-    Util::checkAllocation(qSourceIdtoNumEntries, "Can not allocate qSourceIdtoNumEntries memory in parseproteomealignments");
-    memset(qSourceIdtoNumEntries, 0, qdbSourceSize * sizeof(unsigned int));
-
-    for (size_t i = 0; i < qdbr.getSize(); i++) {
-        unsigned int dbKey = qdbr.getDbKey(i);
-        size_t lookupId = qdbr.getLookupIdByKey(dbKey);
-        const unsigned int proteomeSourceId = qdbr.getLookupFileNumber(lookupId);
-        qSourceIdtoNumEntries[proteomeSourceId]++;
-    }
-
     const size_t flushSize = 100000000;
     size_t iterations = static_cast<int>(ceil(static_cast<double>(alndbr.getSize()) / static_cast<double>(flushSize)));
 
@@ -69,53 +93,51 @@ int parseproteomealignments(int argc, const char **argv, const Command &command)
             for (size_t id = start; id < (start + bucketSize); id++) {
                 progress.updateProgress();
 
-                const unsigned int queryDbKey = alndbr.getDbKey(id);
+                const DBKeyType queryDbKey = alndbr.getDbKey(id);
                 // const unsigned int qId = qdbr.getId(queryDbKey);
                 size_t qLookupId = qdbr.getLookupIdByKey(queryDbKey);
-                const unsigned int querySourceId = qdbr.getLookupFileNumber(qLookupId);
+                const size_t querySourceIdx = qSourceToIdx[qdbr.getLookupFileNumber(qLookupId)];
                 char *data = alndbr.getData(id, thread_idx);
                 // localMatchResults.clear();
                 std::fill(localMatchResults.begin(), localMatchResults.end(), 0);
                 while (*data != '\0') {
                     Util::parseKey(data, buffer);
-                    const unsigned int targetDbKey = (unsigned int) strtoul(buffer, NULL, 10);
+                    const DBKeyType targetDbKey = Util::fast_atoi<DBKeyType>(buffer);
                     // const unsigned int tId = tdbr.getId(targetDbKey);  
                     size_t tLookupId = tdbr.getLookupIdByKey(targetDbKey);
-                    const unsigned int targetSourceId = tdbr.getLookupFileNumber(tLookupId);
-                    if (localMatchResults[targetSourceId] == 0) {
-                        localMatchResults[targetSourceId] = 1;
+                    const size_t targetSourceIdx = tSourceToIdx[tdbr.getLookupFileNumber(tLookupId)];
+                    if (localMatchResults[targetSourceIdx] == 0) {
+                        localMatchResults[targetSourceIdx] = 1;
                     }
                     data = Util::skipLine(data);
                 }
                 for (size_t t = 0; t < tdbSourceSize; ++t) {
                     if (localMatchResults[t] != 0) {
 #pragma omp atomic
-                        scoreLookupTable[querySourceId][t] += localMatchResults[t];
+                        scoreLookupTable[querySourceIdx][t] += localMatchResults[t];
                     }
                 }
             }
         }
+    }
 
-        std::string alnResultsOutString;
-        alnResultsOutString.reserve(1024*1024);
-        char buffer[1024];
-
-        for (size_t q = 0; q < qdbSourceSize; ++q) {
-            for (size_t t = 0; t < tdbSourceSize; ++t) {
-                char* tmpBuffer = Itoa::i32toa_sse2(t, buffer);
-                *(tmpBuffer - 1) = '\t';
-                float score = static_cast<float>(scoreLookupTable[q][t]) / static_cast<float>(qSourceIdtoNumEntries[q]);
-                tmpBuffer = Util::fastSeqIdToBuffer(score, tmpBuffer);
-                *(tmpBuffer - 1) = '\n';
-                alnResultsOutString.append(buffer, tmpBuffer - buffer);
-            }
-            resultWriter.writeData(alnResultsOutString.c_str(), alnResultsOutString.length(), q, 0);
-            alnResultsOutString.clear();
+    std::string alnResultsOutString;
+    alnResultsOutString.reserve(1024*1024);
+    char buffer[1024];
+    for (size_t q = 0; q < qdbSourceSize; ++q) {
+        for (size_t t = 0; t < tdbSourceSize; ++t) {
+            char* tmpBuffer = Itoa::u64toa_sse2(static_cast<uint64_t>(tSourceIds[t]), buffer);
+            *(tmpBuffer - 1) = '\t';
+            float score = static_cast<float>(scoreLookupTable[q][t]) / static_cast<float>(qSourceNumEntries[q]);
+            tmpBuffer = Util::fastSeqIdToBuffer(score, tmpBuffer);
+            *(tmpBuffer - 1) = '\n';
+            alnResultsOutString.append(buffer, tmpBuffer - buffer);
         }
+        resultWriter.writeData(alnResultsOutString.c_str(), alnResultsOutString.length(), qSourceIds[q], 0);
+        alnResultsOutString.clear();
     }
     delete[] scores;
     delete[] scoreLookupTable;
-    delete[] qSourceIdtoNumEntries;
     
     alndbr.close();
     qdbr.remapData();
@@ -126,5 +148,3 @@ int parseproteomealignments(int argc, const char **argv, const Command &command)
 
     return EXIT_SUCCESS;
 }
-
-

@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <regex.h>
 #include <unistd.h>
+#include <sched.h>
 
 #include "blosum62.out.h"
 #include "PAM30.out.h"
@@ -142,6 +143,8 @@ Parameters::Parameters():
         PARAM_PCA(PARAM_PCA_ID, "--pca", "Pseudo count a", "Pseudo count admixture strength", typeid(MultiParam<PseudoCounts>), (void *) &pca, "^[0-9]*(\\.[0-9]+)?$", MMseqsParameter::COMMAND_PROFILE | MMseqsParameter::COMMAND_EXPERT),
         PARAM_PCB(PARAM_PCB_ID, "--pcb", "Pseudo count b", "Pseudo counts: Neff at half of maximum admixture (range 0.0-inf)", typeid(MultiParam<PseudoCounts>), (void *) &pcb, "^[0-9]*(\\.[0-9]+)?$", MMseqsParameter::COMMAND_PROFILE | MMseqsParameter::COMMAND_EXPERT),
         PARAM_PROFILE_OUTPUT_MODE(PARAM_PROFILE_OUTPUT_MODE_ID, "--profile-output-mode", "Profile output mode", "Profile output mode: 0: binary log-odds 1: human-readable frequencies", typeid(int), (void *) &profileOutputMode, "^[0-1]{1}$", MMseqsParameter::COMMAND_PROFILE | MMseqsParameter::COMMAND_EXPERT),
+        // pickrepprofile / pickconsensusrepfast
+        PARAM_SWITCH_CONSENSUS_REP(PARAM_SWITCH_CONSENSUS_REP_ID, "--switch-consensus-rep", "Switch to consensus representatives", "After clustering, reuse the alignments to pick the most profile-consistent observed member as the new representative (linclust-version 2 / cluster-version 2 only)", typeid(bool), (void *) &switchConsensusRep, "", MMseqsParameter::COMMAND_CLUSTLINEAR | MMseqsParameter::COMMAND_EXPERT),
         // sequence2profile
         PARAM_NEFF(PARAM_NEFF_ID, "--neff", "Neff", "Neff included into context state profile (1.0,20.0)", typeid(float), (void *) &neff, "^[0-9]*(\\.[0-9]+)?$", MMseqsParameter::COMMAND_PROFILE),
         PARAM_TAU(PARAM_TAU_ID, "--tau", "Tau", "Tau: context state pseudo count mixture (0.0,1.0)", typeid(float), (void *) &tau, "[0-9]*(\\.[0-9]+)?$", MMseqsParameter::COMMAND_PROFILE),
@@ -276,6 +279,7 @@ Parameters::Parameters():
         // mergedbs
         PARAM_MERGE_PREFIXES(PARAM_MERGE_PREFIXES_ID, "--prefixes", "Merge prefixes", "Comma separated list of prefixes for each entry", typeid(std::string), (void *) &mergePrefixes, "", MMseqsParameter::COMMAND_EXPERT),
         PARAM_MERGE_STOP_EMPTY(PARAM_MERGE_STOP_EMPTY_ID, "--merge-stop-empty", "Stop merge after empty", "Don't continue merging entries after an empty entry", typeid(bool), (void*)&mergeStopEmpty, "", MMseqsParameter::COMMAND_EXPERT),
+        PARAM_MERGE_FILTER_TARGET(PARAM_MERGE_FILTER_TARGET_ID, "--merge-filter-target", "Filter merged lines by key DB", "Only keep merged lines whose target key is listed in the key-source DB (db1) entry", typeid(bool), (void*)&mergeFilterTarget, "", MMseqsParameter::COMMAND_EXPERT),
         // summarizeresult
         PARAM_OVERLAP(PARAM_OVERLAP_ID, "--overlap", "Overlap threshold", "Maximum overlap of covered regions", typeid(float), (void *) &overlap, "^[0-9]*(\\.[0-9]+)?$"),
         // msa2profile
@@ -331,6 +335,7 @@ Parameters::Parameters():
         PARAM_TEMPERATURE(PARAM_TEMPERATURE_ID, "--temperature", "Temperature", "Temperature for forward-backward", typeid(float), (void *) &temperature, "^(0\\.[0-9]+|[1-9][0-9]*\\.?[0-9]*)$", MMseqsParameter::COMMAND_EXPERT),
         PARAM_BLOCKLEN(PARAM_BLOCKLEN_ID, "--blocklen", "Block length", "Block length for forward-backward", typeid(int), (void *) &blocklen, "^[1-9]{1}[0-9]*$", MMseqsParameter::COMMAND_EXPERT),
         PARAM_FWBW_BACKTRACE_MODE(PARAM_FWBW_BACKTRACE_MODE_ID, "--fwbw-backtrace-mode", "Backtrace mode", "Backtrace mode 0: no backtrace, 1: local", typeid(int), (void *) &fwbwBacktraceMode, "^[01]$", MMseqsParameter::COMMAND_EXPERT),
+        PARAM_FWBW_SCALED_MODE(PARAM_FWBW_SCALED_MODE_ID, "--fwbw-scaled-mode", "Scaled mode", "Forward-backward kernel:\n0: log space\n1: scaled, failed calls are rerun in double precision\n2: scaled without the forward/backward check", typeid(int), (void *) &fwbwScaledMode, "^[0-2]$", MMseqsParameter::COMMAND_EXPERT),
         // touchdb
         PARAM_TOUCH_LOCK(PARAM_TOUCH_LOCK_ID, "--touch-lock", "Touch lock", "Lock touched database or database entries into memory. Process will not exit until killed.", typeid(bool), (void *) &touchLock, "", MMseqsParameter::COMMAND_EXPERT),
         // proteomecluster
@@ -339,10 +344,12 @@ Parameters::Parameters():
         PARAM_PROTEOME_SIMILARITY(PARAM_PROTEOME_SIMILARITY_ID, "--proteome-similarity", "Proteome similarity", "Proteome similarity threshold", typeid(float), (void *) &proteomeSimThr, "^0(\\.[0-9]+)?|1(\\.0+)?$", MMseqsParameter::COMMAND_EXPERT),
         PARAM_PROTEOME_RELATIVE_SIMILARITY(PARAM_PROTEOME_RELATIVE_SIMILARITY_ID, "--proteome-relative-similarity", "Proteome relative similarity", "Proteome relative similarity threshold normalized by proteome size", typeid(float), (void *) &proteomeRelativeSimThr, "^0(\\.[0-9]+)?|1(\\.0+)?$", MMseqsParameter::COMMAND_CLUSTPROTEOME),
         PARAM_PROTEOME_CASCADED_CLUSTERING(PARAM_PROTEOME_CASCADED_CLUSTERING_ID, "--proteome-cascaded-clustering", "Proteome cascaded clustering", "Cascaded clustering", typeid(bool), (void *) &proteomeCascadedClustering, "", MMseqsParameter::COMMAND_EXPERT),
-        PARAM_INCLUDE_ALIGN_FILES(PARAM_INCLUDE_ALIGN_FILES_ID, "--include-align-files", "Include align files in proteomecluster", "Include align files", typeid(bool), (void *) &includeAlignFiles, "", MMseqsParameter::COMMAND_HIDDEN),
+        PARAM_INCLUDE_ALIGN_FILES(PARAM_INCLUDE_ALIGN_FILES_ID, "--include-align-files", "Include align files", "Also write the alignment result DB", typeid(bool), (void *) &includeAlignFiles, "", MMseqsParameter::COMMAND_HIDDEN),
         PARAM_PROTEOME_WEIGHT_FILE(PARAM_PROTEOME_WEIGHT_FILE_ID, "--proteome-weights", "Proteome Weight file name", "Weights used for proteome priorization", typeid(std::string), (void*) &proteomeWeightFile, "",MMseqsParameter::COMMAND_EXPERT ),
         PARAM_PROTEOME_WEIGHT_CLUSTER_COUNT(PARAM_PROTEOME_WEIGHT_CLUSTER_COUNT_ID, "--proteome-weight-clustercount", "Weight cluster count in proteome clustering", "Weight of cluster count in proteome clustering", typeid(float), (void *) &proteomeWeightClusterCount, "^-?[0-9]*(\\.[0-9]+)?$", MMseqsParameter::COMMAND_EXPERT),
         PARAM_PROTEOME_INCLUDE_ALIGN_FILES(PARAM_PROTEOME_INCLUDE_ALIGN_FILES_ID, "--proteome-include-align-files", "Include align files in proteomecluster", "Include align files", typeid(bool), (void *) &proteomeIncludeAlignFiles, "", MMseqsParameter::COMMAND_EXPERT),
+        PARAM_PROTEOME_SCORE_MODE(PARAM_PROTEOME_SCORE_MODE_ID, "--proteome-score-mode", "Proteome score mode", "How a proteome is scored:\n0: default\n1: fraction of its proteins aligning to any protein of the reference proteome", typeid(int), (void *) &proteomeScoreMode, "^[0-1]{1}$", MMseqsParameter::COMMAND_EXPERT),
+        PARAM_PROTEOME_REASSIGN(PARAM_PROTEOME_REASSIGN_ID, "--proteome-reassign", "Proteome reassign", "Proteome clustering can leave a proteome cluster apart although all its proteomes match an earlier reference.\nProteome reassignment merges such a cluster into the first earlier one", typeid(bool), (void *) &proteomeReassign, "", MMseqsParameter::COMMAND_EXPERT),
         // for modules that should handle -h themselves
         PARAM_HELP(PARAM_HELP_ID, "-h", "Help", "Help", typeid(bool), (void *) &help, "", MMseqsParameter::COMMAND_HIDDEN),
         PARAM_HELP_LONG(PARAM_HELP_LONG_ID, "--help", "Help", "Help", typeid(bool), (void *) &help, "", MMseqsParameter::COMMAND_HIDDEN)
@@ -462,7 +469,8 @@ Parameters::Parameters():
     align2clust.push_back(&PARAM_CLUSTER_MODE);
     align2clust.push_back(&PARAM_FILTER_CLUDB_FILE);
     align2clust.push_back(&PARAM_FILTER_SEQDB_FILE);
-    
+    align2clust.push_back(&PARAM_INCLUDE_ALIGN_FILES);
+
     // prefilter
     prefilter.push_back(&PARAM_SUB_MAT);
     prefilter.push_back(&PARAM_SEED_SUB_MAT);
@@ -507,6 +515,7 @@ Parameters::Parameters():
     ungappedprefilter.push_back(&PARAM_NO_COMP_BIAS_CORR);
     ungappedprefilter.push_back(&PARAM_NO_COMP_BIAS_CORR_SCALE);
     ungappedprefilter.push_back(&PARAM_MIN_DIAG_SCORE);
+    ungappedprefilter.push_back(&PARAM_MASK_N_REPEAT);
     ungappedprefilter.push_back(&PARAM_MAX_SEQS);
     ungappedprefilter.push_back(&PARAM_TAXON_LIST);
     ungappedprefilter.push_back(&PARAM_PRELOAD_MODE);
@@ -929,6 +938,30 @@ Parameters::Parameters():
     result2repseq.push_back(&PARAM_THREADS);
     result2repseq.push_back(&PARAM_V);
 
+    // pickrepprofile (scoring core)
+    pickrepprofile.push_back(&PARAM_C);
+    pickrepprofile.push_back(&PARAM_SUB_MAT);
+    pickrepprofile.push_back(&PARAM_NO_COMP_BIAS_CORR);
+    pickrepprofile.push_back(&PARAM_NO_COMP_BIAS_CORR_SCALE);
+    pickrepprofile.push_back(&PARAM_GAP_OPEN);
+    pickrepprofile.push_back(&PARAM_GAP_EXTEND);
+    pickrepprofile.push_back(&PARAM_WG);
+    pickrepprofile.push_back(&PARAM_PC_MODE);
+    pickrepprofile.push_back(&PARAM_PCA);
+    pickrepprofile.push_back(&PARAM_PCB);
+#ifdef GAP_POS_SCORING
+    pickrepprofile.push_back(&PARAM_GAP_PSEUDOCOUNT);
+#endif
+    pickrepprofile.push_back(&PARAM_PRELOAD_MODE);
+    pickrepprofile.push_back(&PARAM_COMPRESSED);
+    pickrepprofile.push_back(&PARAM_THREADS);
+    pickrepprofile.push_back(&PARAM_V);
+
+    // pickconsensusrepfast (workflow) = pickrepprofile core + cluster-DB rewrite
+    pickconsensusrepfast = combineList(pickrepprofile, onlyverbosity);
+    pickconsensusrepfast.push_back(&PARAM_REMOVE_TMP_FILES);
+    pickconsensusrepfast.push_back(&PARAM_REUSELATEST);
+
     // gff2db
     gff2db.push_back(&PARAM_GFF_TYPE);
     gff2db.push_back(&PARAM_ID_OFFSET);
@@ -1117,6 +1150,7 @@ Parameters::Parameters():
     // mergedbs
     mergedbs.push_back(&PARAM_MERGE_PREFIXES);
     mergedbs.push_back(&PARAM_MERGE_STOP_EMPTY);
+    mergedbs.push_back(&PARAM_MERGE_FILTER_TARGET);
     mergedbs.push_back(&PARAM_COMPRESSED);
     mergedbs.push_back(&PARAM_V);
 
@@ -1361,6 +1395,7 @@ Parameters::Parameters():
     fwbw.push_back(&PARAM_TEMPERATURE);
     fwbw.push_back(&PARAM_BLOCKLEN);
     fwbw.push_back(&PARAM_FWBW_BACKTRACE_MODE);
+    fwbw.push_back(&PARAM_FWBW_SCALED_MODE);
     fwbw.push_back(&PARAM_E);
     fwbw.push_back(&PARAM_MIN_SEQ_ID);
     fwbw.push_back(&PARAM_MIN_ALN_LEN);
@@ -1393,6 +1428,7 @@ Parameters::Parameters():
     proteomecluster.push_back(&PARAM_PROTEOME_SIMILARITY);
     proteomecluster.push_back(&PARAM_PROTEOME_RELATIVE_SIMILARITY);
     proteomecluster.push_back(&PARAM_PROTEOME_CASCADED_CLUSTERING);
+    proteomecluster.push_back(&PARAM_PROTEOME_SCORE_MODE);
     proteomecluster.push_back(&PARAM_INCLUDE_ALIGN_FILES);
     proteomecluster.push_back(&PARAM_REALIGN);
     proteomecluster.push_back(&PARAM_INCLUDE_IDENTITY);
@@ -1409,6 +1445,13 @@ Parameters::Parameters():
     parseproteomealignments.push_back(&PARAM_THREADS);
     parseproteomealignments.push_back(&PARAM_COMPRESSED);
     parseproteomealignments.push_back(&PARAM_V);
+
+    //mergeproteomeclusters
+    mergeproteomeclusters.push_back(&PARAM_PROTEOME_SIMILARITY);
+    mergeproteomeclusters.push_back(&PARAM_PROTEOME_RELATIVE_SIMILARITY);
+    mergeproteomeclusters.push_back(&PARAM_THREADS);
+    mergeproteomeclusters.push_back(&PARAM_COMPRESSED);
+    mergeproteomeclusters.push_back(&PARAM_V);
 
     // WORKFLOWS
     searchworkflow = combineList(align, prefilter);
@@ -1451,11 +1494,13 @@ Parameters::Parameters():
     easysearchworkflow = combineList(easysearchworkflow, summarizeresult);
     easysearchworkflow = combineList(easysearchworkflow, createdb);
     easysearchworkflow = combineList(easysearchworkflow, makepaddedseqdb);
+    easysearchworkflow = combineList(easysearchworkflow, taxonomyreport);
     easysearchworkflow.push_back(&PARAM_GREEDY_BEST_HITS);
 
     // easyproteomesearch
     easyproteomesearchworkflow = combineList(searchworkflow, createdb);
     easyproteomesearchworkflow = combineList(searchworkflow, parseproteomealignments);
+    easyproteomesearchworkflow.push_back(&PARAM_PROTEOME_SCORE_MODE);
 
     // createindex workflow
     createindex = combineList(indexdb, extractorfs);
@@ -1475,6 +1520,7 @@ Parameters::Parameters():
     linclustworkflow = combineList(linclustworkflow, rescorediagonal);
     linclustworkflow = combineList(linclustworkflow, align2clust);
     linclustworkflow = combineList(linclustworkflow, clusthash);
+    linclustworkflow.push_back(&PARAM_SWITCH_CONSENSUS_REP);
     linclustworkflow.push_back(&PARAM_CLUST_HASH);
     linclustworkflow.push_back(&PARAM_REMOVE_TMP_FILES);
     linclustworkflow.push_back(&PARAM_REUSELATEST);
@@ -1505,6 +1551,7 @@ Parameters::Parameters():
     // easyproteomeclusterworkflow
     easyproteomeclusterworkflow = combineList(easyclusterworkflow, proteomecluster);
     easyproteomeclusterworkflow.push_back(&PARAM_CLUSTER_MODULE);
+    easyproteomeclusterworkflow.push_back(&PARAM_PROTEOME_REASSIGN);
 
     // taxonomy
     taxonomy.push_back(&PARAM_ORF_FILTER);
@@ -1549,6 +1596,7 @@ Parameters::Parameters():
 
     mapworkflow = combineList(prefilter, rescorediagonal);
     mapworkflow = combineList(mapworkflow, extractorfs);
+    mapworkflow.push_back(&PARAM_SEARCH_TYPE);
     mapworkflow.push_back(&PARAM_START_SENS);
     mapworkflow.push_back(&PARAM_SENS_STEPS);
     mapworkflow.push_back(&PARAM_RUNNER);
@@ -2494,8 +2542,19 @@ void Parameters::setDefaults() {
     if (threadEnv != NULL) {
         threads = (int) Util::fast_atoi<unsigned int>(threadEnv);
     } else {
+        // respect the CPU affinity mask (taskset, cgroup/SLURM allocation) so we
+        // don't default to every online core when only a subset is available (issue #925)
+        #if defined(__linux__) && defined(CPU_COUNT)
+            cpu_set_t cpuMask;
+            CPU_ZERO(&cpuMask);
+            if (sched_getaffinity(0, sizeof(cpuMask), &cpuMask) == 0) {
+                threads = CPU_COUNT(&cpuMask);
+            }
+        #endif
         #ifdef _SC_NPROCESSORS_ONLN
-            threads = sysconf(_SC_NPROCESSORS_ONLN);
+            if (threads <= 1) {
+                threads = sysconf(_SC_NPROCESSORS_ONLN);
+            }
         #endif
         if(threads <= 1){
             threads = Util::omp_thread_count();
@@ -2506,6 +2565,7 @@ void Parameters::setDefaults() {
     compBiasCorrection = 1;
     compBiasCorrectionScale = 1.0;
     diagonalScoring = true;
+    useAuxScoring = false;
     exactKmerMatching = 0;
     maskMode = 1;
     maskProb = 0.9;
@@ -2602,6 +2662,9 @@ void Parameters::setDefaults() {
     pca = MultiParam<PseudoCounts>(PseudoCounts(1.1, 1.4));
     pcb = MultiParam<PseudoCounts>(PseudoCounts(4.1, 5.8));
     profileOutputMode = 0;
+
+    // pickrepprofile / pickconsensusrepfast
+    switchConsensusRep = false;
 
     // sequence2profile
     neff = 1.0;
@@ -2711,6 +2774,7 @@ void Parameters::setDefaults() {
     // mergedbs
     mergePrefixes = "";
     mergeStopEmpty = false;
+    mergeFilterTarget = false;
 
     // summarizetabs
     overlap = 0.0f;
@@ -2747,8 +2811,8 @@ void Parameters::setDefaults() {
     includeAdjacency = true;
     adjIteration = 3;
     clustHash = false;
-    linclustVersion = 2;
-    clusterVersion = 1;
+    linclustVersion = LINCLUST_VERSION2;
+    clusterVersion = CLUSTER_VERSION1;
 
     // result2stats
     stat = "";
@@ -2822,6 +2886,7 @@ void Parameters::setDefaults() {
     temperature = 1;
     blocklen = 16;
     fwbwBacktraceMode = 1;
+    fwbwScaledMode = 1;
 
     // touchdb
     touchLock = false;
@@ -2837,6 +2902,8 @@ void Parameters::setDefaults() {
     proteomeCascadedClustering = 0;
     includeAlignFiles = false;
     proteomeIncludeAlignFiles = false;
+    proteomeScoreMode = 0;
+    proteomeReassign = false;
 
     // help
     help = 0;

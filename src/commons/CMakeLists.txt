@@ -8,6 +8,7 @@ set(commons_header_files
         commons/Command.h
         commons/CommandCaller.h
         commons/Concat.h
+        commons/CpuFeatures.h
         commons/DBConcat.h
         commons/DBReader.h
         commons/DBWriter.h
@@ -56,6 +57,7 @@ set(commons_source_files
         commons/CommandCaller.cpp
         commons/DBConcat.cpp
         commons/DBReader.cpp
+        commons/DBReaderSortIndex.cpp
         commons/DBWriter.cpp
         commons/Debug.cpp
         commons/ExpressionParser.cpp
@@ -78,6 +80,7 @@ set(commons_source_files
         commons/Sequence.cpp
         commons/SequenceWeights.cpp
         commons/SubstitutionMatrix.cpp
+        commons/Timer.cpp
         commons/UniprotKB.cpp
         commons/Util.cpp
         PARENT_SCOPE

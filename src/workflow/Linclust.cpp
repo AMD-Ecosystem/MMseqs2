@@ -16,7 +16,6 @@ void setLinclustWorkflowDefaults(Parameters *p) {
     p->evalThr = 0.001;
     p->seqIdThr = 0.9;
     p->alignmentMode = Parameters::ALIGNMENT_MODE_SCORE_COV_SEQID; // set alignmentmode 3 as a default in linclust2
-    p->linclustVersion = Parameters::LINCLUST_VERSION2;
     p->clustHash = false;
 }
 
@@ -42,6 +41,14 @@ int linclust(int argc, const char **argv, const Command& command) {
     par.filenames.pop_back();
     par.filenames.push_back(tmpDir);
 
+    const int dbType = FileUtil::parseDbType(par.db1.c_str());
+    if (Parameters::isEqualDbtype(dbType, Parameters::DBTYPE_NUCLEOTIDES) && par.linclustVersion == Parameters::LINCLUST_VERSION2) {
+        if (par.PARAM_LINCLUST_VERSION.wasSet) {
+            Debug(Debug::WARNING) << "--linclust-version 2 does not support nucleotide databases; using --linclust-version 1.\n";
+        }
+        par.linclustVersion = Parameters::LINCLUST_VERSION1;
+    }
+
     CommandCaller cmd;
     cmd.addVariable("REMOVE_TMP", par.removeTmpFiles ? "TRUE" : NULL);
     cmd.addVariable("RUNNER", par.runner.c_str());
@@ -49,6 +56,18 @@ int linclust(int argc, const char **argv, const Command& command) {
         cmd.addVariable("LINCLUST_MODULE", "linclust1");
     } else if (par.linclustVersion == 2) {
         cmd.addVariable("LINCLUST_MODULE", "linclust2");
+    }
+
+    // Optionally switch to profile-consensus representatives after clustering.
+    // This reuses the representative-to-member alignments, so force their creation.
+    const bool writeAlnFiles = par.PARAM_INCLUDE_ALIGN_FILES.wasSet;
+    if (par.switchConsensusRep && par.linclustVersion != Parameters::LINCLUST_VERSION2) {
+        Debug(Debug::WARNING) << "--switch-consensus-rep requires --linclust-version 2; ignoring.\n";
+        par.switchConsensusRep = false;
+    }
+    if (par.switchConsensusRep) {
+        par.includeAlignFiles = true;
+        par.addBacktrace = true;
     }
     // save some values to restore them later
     MultiParam<NuclAA<int>>alphabetSize = par.alphabetSize;
@@ -103,7 +122,6 @@ int linclust(int argc, const char **argv, const Command& command) {
         par.alphabetSize = MultiParam<NuclAA<int>>(NuclAA<int>(Parameters::CLUST_LINEAR_DEFAULT_ALPH_SIZE, 5));
     }
 
-    const int dbType = FileUtil::parseDbType(par.db1.c_str());
     const bool isUngappedMode = par.alignmentMode == Parameters::ALIGNMENT_MODE_UNGAPPED;
     if (isUngappedMode && Parameters::isEqualDbtype(dbType, Parameters::DBTYPE_HMM_PROFILE)) {
         par.printUsageMessage(command, MMseqsParameter::COMMAND_ALIGN|MMseqsParameter::COMMAND_PREFILTER);
@@ -182,6 +200,10 @@ int linclust(int argc, const char **argv, const Command& command) {
     par.seqIdThr = prevSeqId;
     par.alphabetSize = alphabetSize;
     cmd.addVariable("CLUSTHASH_CLUST_PAR", par.createParameterString(par.clust).c_str());
+
+    cmd.addVariable("SWITCH_CONSENSUS_REP", par.switchConsensusRep ? "TRUE" : NULL);
+    cmd.addVariable("KEEP_SWITCH_ALN", (par.switchConsensusRep && writeAlnFiles) ? "TRUE" : NULL);
+    cmd.addVariable("PICKREP_PAR", par.createParameterString(par.pickrepprofile).c_str());
 
     std::string program = tmpDir + "/linclust.sh";
     FileUtil::writeFile(program, linclust_sh, linclust_sh_len);

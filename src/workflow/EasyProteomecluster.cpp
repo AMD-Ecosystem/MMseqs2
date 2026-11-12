@@ -8,6 +8,8 @@
 
 #include "easyproteomecluster.sh.h"
 
+extern float setAutomaticThreshold(float seqId);
+
 void setEasyproteomeclusterDefaults(Parameters *p) {
     p->alignmentMode = Parameters::ALIGNMENT_MODE_SCORE_COV_SEQID;
     p->weightClusterCount = 1.0;
@@ -41,7 +43,7 @@ int easyproteomecluster(int argc, const char **argv, const Command &command) {
     cmd.addVariable("RESULTS", par.filenames.back().c_str());
     par.filenames.pop_back();
     cmd.addVariable("REMOVE_TMP", par.removeTmpFiles ? "TRUE" : NULL);
-    cmd.addVariable("WRITE_ALIGN_PROTEOME", par.includeAlignFiles ? "TRUE" : NULL);
+    cmd.addVariable("WRITE_ALIGN_PROTEOME", (par.includeAlignFiles || par.proteomeIncludeAlignFiles) ? "TRUE" : NULL);
     cmd.addVariable("CASCADED_PROTEOME_CLUSTERING", par.proteomeCascadedClustering ? "TRUE" : NULL);
     cmd.addVariable("CREATEDB_PAR", par.createParameterString(par.createdb).c_str());
     cmd.addVariable("CLUSTER_PAR", par.createParameterString(par.clusterworkflow, true).c_str());
@@ -55,6 +57,26 @@ int easyproteomecluster(int argc, const char **argv, const Command &command) {
     cmd.addVariable("PROTEOMECLUSTER_PAR", par.createParameterString(par.proteomecluster).c_str());
     cmd.addVariable("THREADS_PAR", par.createParameterString(par.onlythreads).c_str());
     cmd.addVariable("VERBOSITY_PAR", par.createParameterString(par.onlyverbosity).c_str());
+    cmd.addVariable("REASSIGN", par.proteomeReassign ? "TRUE" : NULL);
+    cmd.addVariable("PROTEOME_SIMILARITY", SSTR(par.proteomeSimThr).c_str());
+    cmd.addVariable("MAX_SEQS_SET", par.PARAM_MAX_SEQS.wasSet ? "TRUE" : NULL);
+    cmd.addVariable("MERGEPROTEOMECLUSTERS_PAR", par.createParameterString(par.mergeproteomeclusters).c_str());
+    // defaults of setLinclustWorkflowDefaults / setWorkflowDefaults
+    if (par.clusterModule == 0 && par.PARAM_MIN_SEQ_ID.wasSet == false) {
+        par.seqIdThr = 0.9;
+    }
+    if (par.PARAM_C.wasSet == false) {
+        par.covThr = 0.8;
+    }
+
+    if (par.PARAM_S.wasSet == false) {
+        par.sensitivity = setAutomaticThreshold(par.seqIdThr);
+        par.PARAM_S.wasSet = true;
+    }
+    for (size_t i = 0; i < par.proteomecluster.size(); i++) {
+        par.proteomecluster[i]->wasSet = true;
+    }
+    cmd.addVariable("SEARCH_PAR", par.createParameterString(par.searchworkflow, true).c_str());
 
     std::string program = tmpDir + "/easyproteomecluster.sh";
     FileUtil::writeFile(program, easyproteomecluster_sh, easyproteomecluster_sh_len);

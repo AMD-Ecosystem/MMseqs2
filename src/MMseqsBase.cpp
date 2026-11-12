@@ -3,7 +3,11 @@
 #include "CommandDeclarations.h"
 #include "DownloadDatabase.h"
 
+#ifdef MMSEQS_INT64_IDS
+const char* MMSEQS_CURRENT_INDEX_VERSION = "16-64";
+#else
 const char* MMSEQS_CURRENT_INDEX_VERSION = "16";
+#endif
 
 Parameters& par = Parameters::getInstance();
 std::vector<Command> baseCommands = {
@@ -102,7 +106,7 @@ std::vector<Command> baseCommands = {
                 "Gyuri Kim <gyuribio@snu.ac.kr> & Martin Steinegger <martin.steinegger@snu.ac.kr>",
                 "<i:queryFastaFile1[.gz|.bz2]> ... <i:queryFastaFileN[.gz|.bz2]> <i:targetFastaFile[.gz]>|<i:targetDB> <o:outPrefix> <tmpDir>",
                 CITATION_MMSEQS2, {{"queryFastaPath[.tsv]", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::VARIADIC, &DbValidator::flatfileAndStdin },
-                                        {"targetFastaPath[.tsv]", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA|DbType::VARIADIC, &DbValidator::flatfileAndStdin },
+                                        {"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::flatfile },
                                         {"outPrefix", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile },
                                         {"tmpDir", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory }}},
         {"easy-taxonomy",        easytaxonomy,         &par.easytaxonomy,         COMMAND_EASY,
@@ -614,6 +618,23 @@ std::vector<Command> baseCommands = {
                                           {"clusterDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::clusterDb },
                                           {"clusterDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::clusterDb },
                                           {"tmpDir", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory }}},
+        {"pickconsensusrepfast", pickconsensusrepfast,    &par.pickconsensusrepfast,          COMMAND_CLUSTER,
+                "Fast profile-guided representative selection reusing clustering alignments (workflow)",
+                "Reuses the representative-to-member alignments produced by clustering (run with --include-align-files) to score observed members against each cluster profile and rewrite the cluster DB with the best-scoring member as the new representative, without profile-vs-member realignment.",
+                "Gyuri Kim <gyuribio@snu.ac.kr>",
+                "<i:seqDB> <i:clusterDB> <o:clusterDB> <tmpDir>",
+                CITATION_MMSEQS2, {{"seqDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                                          {"clusterDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::clusterDb },
+                                          {"clusterDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::clusterDb },
+                                          {"tmpDir", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::directory }}},
+        {"pickrepprofile",       pickrepprofile,          &par.pickrepprofile,                COMMAND_CLUSTER,
+                "Score observed cluster members against the cluster profile and pick the best (core of pickconsensusrepfast)",
+                "Reuses representative-to-member alignments to build the center-star MSA/profile and selects the best-scoring observed member, without profile-vs-member realignment. Emits a per-cluster mapping oldRepKey -> newRepKey score coverage clusterSize.",
+                "Gyuri Kim <gyuribio@snu.ac.kr>",
+                "<i:seqDB> <i:alnResultDB> <o:repMappingDB>",
+                CITATION_MMSEQS2, {{"seqDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                                          {"alnResultDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::resultDb },
+                                          {"repMappingDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::genericDb }}},
         {"prefilter",            prefilter,            &par.prefilter,            COMMAND_PREFILTER,
                 "Double consecutive diagonal k-mer search",
                 NULL,
@@ -708,6 +729,15 @@ std::vector<Command> baseCommands = {
                                                                 {"targetDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
                                                                 {"alignmentDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::alignmentDb },
                                                                 {"scoreFile", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::flatfile }}},
+        {"mergeproteomeclusters",             mergeproteomeclusters,             &par.mergeproteomeclusters,             COMMAND_CLUSTPROTEOME,
+                "Merge proteome clusters into earlier reference proteomes",
+                NULL,
+                "Gyuri Kim <gyuribio@snu.ac.kr>",
+                "<i:sequenceDB> <i:proteomeScoreDB> <o:proteomeClusterDB> <i:proteomeClusterDB1> ... <i:proteomeClusterDBn>",
+                CITATION_MMSEQS2, {{"sequenceDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::sequenceDb },
+                                                                {"proteomeScoreDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA, &DbValidator::genericDb },
+                                                                {"proteomeClusterDB", DbType::ACCESS_MODE_OUTPUT, DbType::NEED_DATA, &DbValidator::genericDb },
+                                                                {"proteomeClusterDB", DbType::ACCESS_MODE_INPUT, DbType::NEED_DATA | DbType::VARIADIC, &DbValidator::genericDb }}},
         {"transitivealign",      transitivealign,      &par.align,                COMMAND_ALIGNMENT,
                 "Transfer alignments via transitivity",
                 //"Infer the alignment A->C via B, B being the center sequence and A,C each pairwise aligned against B",
