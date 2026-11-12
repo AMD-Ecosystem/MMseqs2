@@ -220,9 +220,7 @@ struct ClampToInvalid{
     __device__
     #endif
     unsigned int operator()(const unsigned int& packed4) {
-        // On HIP __vminu4 is provided by marv_simd_amd.cuh (force-included via
-        // cuda_to_hip.h); use the same path as CUDA device code.
-        #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+        #ifdef __CUDA_ARCH__
 
         constexpr unsigned int mask20 = 0x14141414; // decimal 20 per byte
         #ifdef HAS_BLACKWELL_INT8_PTX

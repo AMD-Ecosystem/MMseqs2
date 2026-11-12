@@ -5,7 +5,7 @@
 #include <exception>
 #include <iostream>
 
-#if defined(__NVCC__) || defined(__HIPCC__)
+#ifdef __NVCC__
 
 #include <thrust/device_malloc_allocator.h>
 

@@ -320,16 +320,6 @@ if (ENABLE_CUDA)
     endif ()
 endif ()
 
-if (USE_HIP)
-    find_package(hip REQUIRED)
-    target_compile_definitions(mmseqs-framework PUBLIC -DHAVE_CUDA=1)
-    # Link the marv aligner and the HIP runtime shared library. Use the
-    # hip::amdhip64 imported target (resolves to amdhip64.lib on Windows,
-    # libamdhip64.so on Linux) without pulling in hip::device's
-    # --offload-arch compile options onto this plain C++ target.
-    target_link_libraries(mmseqs-framework marv hip::amdhip64)
-endif ()
-
 if (NOT FRAMEWORK_ONLY)
     include(MMseqsSetupDerivedTarget)
     add_subdirectory(version)

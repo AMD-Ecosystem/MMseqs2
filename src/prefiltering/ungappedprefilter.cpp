@@ -18,10 +18,8 @@
 #include "UngappedAligner.h"
 #include "Masker.h"
 
-#ifndef _WIN32
 #include <fcntl.h>
 #include <sys/mman.h>
-#endif
 #include <chrono>
 #include <thread>
 

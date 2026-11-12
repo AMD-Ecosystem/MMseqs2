@@ -12,13 +12,9 @@
 #endif
 
 #include <random>
-#ifndef _WIN32
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <signal.h>
-#else
-#include <signal.h>
-#endif
 
 volatile sig_atomic_t keepRunning = 1;
 void intHandler(int) {
