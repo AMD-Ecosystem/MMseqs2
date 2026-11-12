@@ -10,7 +10,11 @@ option(build_tinyexpr_example "Build TinyExpr example." OFF)
 option(build_tinyexpr_example2 "Build TinyExpr example 2." OFF)
 option(build_tinyexpr_example3 "Build TinyExpr example 3." OFF)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ansi -Wall -Wshadow -fPIC -O3")
+if(WIN32)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ansi -Wall -Wshadow -O3")
+else()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ansi -Wall -Wshadow -fPIC -O3")
+endif()
 
 set(SOURCE_FILES
         tinyexpr.c

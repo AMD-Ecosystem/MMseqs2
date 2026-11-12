@@ -2,7 +2,10 @@ set(compile_resource__internal_dir ${CMAKE_CURRENT_LIST_DIR} CACHE INTERNAL "")
 
 find_program(XXD_EXECUTABLE xxd)
 find_program(SED_EXECUTABLE sed)
-if(XXD_EXECUTABLE AND SED_EXECUTABLE)
+if(WIN32)
+    # the xxd/sed pipeline and checkshell.sh need a POSIX shell
+    set(RESOURCE_COMPILER_NATIVE 1 CACHE INTERNAL "")
+elseif(XXD_EXECUTABLE AND SED_EXECUTABLE)
     set(RESOURCE_COMPILER_NATIVE 0 CACHE INTERNAL "")
 else()
     message("-- xxd or sed not found, compiling resources with CMake instead")
@@ -29,8 +32,12 @@ function(compile_resource INPUT_FILE OUTPUT_FILE)
     set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
     if(RESOURCE_COMPILER_NATIVE)
         string(MAKE_C_IDENTIFIER ${INPUT_FILE_NAME} VAR_NAME)
+        set(CHECKSHELL_COMMAND COMMAND ${compile_resource__internal_dir}/checkshell.sh ${SHELLCHECK_EXECUTABLE} ${INPUT_FILE_NAME})
+        if(WIN32)
+            set(CHECKSHELL_COMMAND "")
+        endif()
         add_custom_command(OUTPUT ${OUTPUT_FILE}
-                COMMAND ${compile_resource__internal_dir}/checkshell.sh ${SHELLCHECK_EXECUTABLE} ${INPUT_FILE_NAME}
+                ${CHECKSHELL_COMMAND}
                 COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_BINARY_DIR}/generated
                 COMMAND ${CMAKE_COMMAND} -DIN=${INPUT_FILE_NAME} -DOUT=${OUTPUT_FILE} -DNAME=${VAR_NAME} -P ${compile_resource__internal_dir}/ResourceToString.cmake
                 WORKING_DIRECTORY ${INPUT_FILE_DIRECTORY}

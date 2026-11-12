@@ -12,8 +12,10 @@
 #endif
 
 #include <random>
+#ifndef _WIN32
 #include <fcntl.h>
 #include <sys/mman.h>
+#endif
 #include <signal.h>
 
 volatile sig_atomic_t keepRunning = 1;
